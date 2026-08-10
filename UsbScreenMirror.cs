@@ -100,6 +100,15 @@ namespace UsbScreenMirror
         private ManagementEventWatcher _usbWatcher;
         private List<DeviceInfo> _connectedDevices = new List<DeviceInfo>();
 
+        // Laptop Trackpad Control Fields
+        private System.Windows.Point _trackpadDragStart;
+        private bool _trackpadIsDragging = false;
+        private DateTime _trackpadLastTap = DateTime.MinValue;
+        private Border _trackpadZone;
+        private TextBlock _trackpadStatusLabel;
+        private int _phoneScreenWidth  = 1080;
+        private int _phoneScreenHeight = 1920;
+
         [STAThread]
         public static void Main()
         {
@@ -647,6 +656,124 @@ namespace UsbScreenMirror
 
             rightStack.Children.Add(presetsToolsGrid);
 
+            // Card 6: Laptop Trackpad Control Panel
+            var trackpadCard = CreateMaterialCard("LAPTOP TRACKPAD CONTROL", "🖱️ Tap • Swipe • Scroll • Drag");
+            var trackpadStack = new StackPanel();
+
+            var tpInfoBar = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            tpInfoBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            tpInfoBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            _trackpadStatusLabel = new TextBlock
+            {
+                Text = "Ready — move mouse over zone to control phone",
+                FontSize = 10.5,
+                Foreground = _mdTextMuted,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var tpResInfo = new TextBlock
+            {
+                Text = "1080×1920",
+                FontSize = 10,
+                Foreground = _mdCyanAccent,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(tpResInfo, 1);
+            tpInfoBar.Children.Add(_trackpadStatusLabel);
+            tpInfoBar.Children.Add(tpResInfo);
+            trackpadStack.Children.Add(tpInfoBar);
+
+            // Virtual Touchpad Zone Canvas
+            _trackpadZone = new Border
+            {
+                Height = 180,
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#080C14")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                BorderThickness = new Thickness(1.5),
+                Cursor = System.Windows.Input.Cursors.Cross,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+
+            var tpCanvas = new Canvas { Background = Brushes.Transparent };
+
+            // Finger-Print Hint icon in center
+            var tpHintIcon = new TextBlock
+            {
+                Text = "☝",
+                FontSize = 36,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var tpHintText = new TextBlock
+            {
+                Text = "Tap · Swipe · Scroll · Right-click BACK · Double-click HOME",
+                FontSize = 10,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E3A2E")),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 50, 0, 0),
+                TextAlignment = TextAlignment.Center
+            };
+            var tpOverlay = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center
+            };
+            tpOverlay.Children.Add(tpHintIcon);
+            tpOverlay.Children.Add(tpHintText);
+            _trackpadZone.Child = tpOverlay;
+
+            // Attach all gesture events
+            _trackpadZone.MouseLeftButtonDown  += OnTrackpadMouseDown;
+            _trackpadZone.MouseLeftButtonUp    += OnTrackpadMouseUp;
+            _trackpadZone.MouseMove            += OnTrackpadMouseMove;
+            _trackpadZone.MouseRightButtonUp   += (s, e) => { SendAdbKeyevent(4); _trackpadStatusLabel.Text = "Right-click → BACK"; };
+            _trackpadZone.MouseWheel           += OnTrackpadMouseWheel;
+
+            trackpadStack.Children.Add(_trackpadZone);
+
+            // Gesture Quick-Ref row
+            var gestureGrid = new Grid();
+            gestureGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            gestureGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            gestureGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            gestureGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var gestureItems = new[]
+            {
+                new { Icon = "👆", Label = "Tap" },
+                new { Icon = "👉", Label = "Swipe" },
+                new { Icon = "🖱", Label = "Scroll" },
+                new { Icon = "✌", Label = "Home" }
+            };
+
+            for (int gIdx = 0; gIdx < gestureItems.Length; gIdx++)
+            {
+                var item = gestureItems[gIdx];
+                var gb = new Border
+                {
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#080C14")),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(6, 5, 6, 5),
+                    Margin = gIdx < 3 ? new Thickness(0, 0, 6, 0) : new Thickness(0),
+                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                    BorderThickness = new Thickness(1)
+                };
+                var gs = new StackPanel { HorizontalAlignment = System.Windows.HorizontalAlignment.Center };
+                gs.Children.Add(new TextBlock { Text = item.Icon, FontSize = 14, HorizontalAlignment = System.Windows.HorizontalAlignment.Center });
+                gs.Children.Add(new TextBlock { Text = item.Label, FontSize = 9.5, Foreground = _mdTextMuted, HorizontalAlignment = System.Windows.HorizontalAlignment.Center });
+                gb.Child = gs;
+                Grid.SetColumn(gb, gIdx);
+                gestureGrid.Children.Add(gb);
+            }
+
+            trackpadStack.Children.Add(gestureGrid);
+            SetCardContent(trackpadCard, trackpadStack);
+            rightStack.Children.Add(trackpadCard);
+
             Grid.SetColumn(rightStack, 1);
             bodyGrid.Children.Add(rightStack);
 
@@ -1072,6 +1199,114 @@ namespace UsbScreenMirror
                     Dispatcher.Invoke(() => Log("WMI Scanner active. (" + ex.Message + ")"));
                 }
             });
+        }
+        #endregion
+
+        #region Laptop Trackpad Gesture Engine
+        // Maps laptop mouse/trackpad coordinates to real Android screen ADB touch commands
+        private System.Windows.Point ScaleToPhone(System.Windows.Point canvasPoint)
+        {
+            double zoneW = _trackpadZone.ActualWidth  > 0 ? _trackpadZone.ActualWidth  : 500;
+            double zoneH = _trackpadZone.ActualHeight > 0 ? _trackpadZone.ActualHeight : 180;
+            double px = (canvasPoint.X / zoneW) * _phoneScreenWidth;
+            double py = (canvasPoint.Y / zoneH) * _phoneScreenHeight;
+            return new System.Windows.Point(
+                Math.Max(0, Math.Min(_phoneScreenWidth  - 1, (int)px)),
+                Math.Max(0, Math.Min(_phoneScreenHeight - 1, (int)py))
+            );
+        }
+
+        private void OnTrackpadMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _trackpadIsDragging = true;
+            _trackpadDragStart  = e.GetPosition(_trackpadZone);
+            _trackpadZone.CaptureMouse();
+
+            // Highlight zone border on press
+            _trackpadZone.BorderBrush = _mdAndroidGreen;
+            _trackpadStatusLabel.Text = string.Format("Press at ({0:0},{1:0})", _trackpadDragStart.X, _trackpadDragStart.Y);
+        }
+
+        private void OnTrackpadMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _trackpadZone.ReleaseMouseCapture();
+            _trackpadZone.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+
+            if (!_trackpadIsDragging) return;
+            _trackpadIsDragging = false;
+
+            var endPoint = e.GetPosition(_trackpadZone);
+            double dx    = endPoint.X - _trackpadDragStart.X;
+            double dy    = endPoint.Y - _trackpadDragStart.Y;
+            double dist  = Math.Sqrt(dx * dx + dy * dy);
+
+            var device = _deviceComboBox.SelectedItem as DeviceInfo;
+            if (device == null || string.IsNullOrEmpty(_adbPath))
+            {
+                _trackpadStatusLabel.Text = "No device connected!";
+                return;
+            }
+
+            var pStart = ScaleToPhone(_trackpadDragStart);
+            var pEnd   = ScaleToPhone(endPoint);
+
+            if (dist < 8)
+            {
+                // Check double-click (< 400ms) → HOME key
+                if ((DateTime.Now - _trackpadLastTap).TotalMilliseconds < 400)
+                {
+                    SendAdbKeyevent(3);
+                    _trackpadStatusLabel.Text = "Double-tap → HOME";
+                    _trackpadLastTap = DateTime.MinValue;
+                    return;
+                }
+                _trackpadLastTap = DateTime.Now;
+
+                // Single tap → adb shell input tap x y
+                string tapArgs = string.Format("-s \"{0}\" shell input tap {1} {2}",
+                    device.Serial, (int)pStart.X, (int)pStart.Y);
+                Task.Run(() => RunCommand(_adbPath, tapArgs));
+                _trackpadStatusLabel.Text = string.Format("Tap → phone ({0},{1})", (int)pStart.X, (int)pStart.Y);
+            }
+            else
+            {
+                // Swipe gesture: duration proportional to distance for natural feel
+                int duration = Math.Max(80, (int)(dist * 1.8));
+                string swipeArgs = string.Format("-s \"{0}\" shell input swipe {1} {2} {3} {4} {5}",
+                    device.Serial, (int)pStart.X, (int)pStart.Y, (int)pEnd.X, (int)pEnd.Y, duration);
+                Task.Run(() => RunCommand(_adbPath, swipeArgs));
+
+                // Determine swipe direction label
+                string dir = Math.Abs(dx) > Math.Abs(dy)
+                    ? (dx > 0 ? "Swipe Right →" : "← Swipe Left")
+                    : (dy > 0 ? "Swipe Down ↓" : "↑ Swipe Up");
+                _trackpadStatusLabel.Text = string.Format("{0} ({1}px)", dir, (int)dist);
+                Log(string.Format("🖱️ Trackpad swipe: ({0},{1}) → ({2},{3}) in {4}ms",
+                    (int)pStart.X, (int)pStart.Y, (int)pEnd.X, (int)pEnd.Y, duration));
+            }
+        }
+
+        private void OnTrackpadMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_trackpadIsDragging) return;
+            var pos   = e.GetPosition(_trackpadZone);
+            var phone = ScaleToPhone(pos);
+            _trackpadStatusLabel.Text = string.Format("Dragging → phone ({0},{1})", (int)phone.X, (int)phone.Y);
+        }
+
+        private void OnTrackpadMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            var device = _deviceComboBox.SelectedItem as DeviceInfo;
+            if (device == null || string.IsNullOrEmpty(_adbPath)) return;
+
+            // Wheel up = scroll up on phone (swipe down), wheel down = swipe up
+            int scrollDelta = e.Delta > 0 ? -400 : 400;
+            int cx = _phoneScreenWidth  / 2;
+            int cy = _phoneScreenHeight / 2;
+            string scrollArgs = string.Format("-s \"{0}\" shell input swipe {1} {2} {3} {4} 200",
+                device.Serial, cx, cy, cx, cy + scrollDelta);
+            Task.Run(() => RunCommand(_adbPath, scrollArgs));
+            _trackpadStatusLabel.Text = e.Delta > 0 ? "Scroll Wheel ↑ Up" : "Scroll Wheel ↓ Down";
         }
         #endregion
 
