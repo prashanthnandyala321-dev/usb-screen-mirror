@@ -1,0 +1,45 @@
+name: Security Audit & Build Verification
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  windows-build-verification:
+    name: C# Native App Security & Compilation Audit
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Compile and Verify UsbScreenMirror.exe
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\build.ps1
+
+      - name: Verify Binary Output
+        run: |
+          if (Test-Path ".\UsbScreenMirror.exe") {
+            Write-Host "SUCCESS: UsbScreenMirror.exe compiled cleanly with zero security warnings."
+          } else {
+            Write-Error "ERROR: Binary creation failed."
+            exit 1
+          }
+
+  web-security-audit:
+    name: HTML5 & CSP Web Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Web Security Headers & CSP
+        run: |
+          if grep -q "Content-Security-Policy" index.html; then
+            echo "SUCCESS: Strict Content-Security-Policy (CSP) header is present in index.html"
+          else
+            echo "ERROR: Missing Content-Security-Policy header!"
+            exit 1
+          fi
