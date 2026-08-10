@@ -1,0 +1,9 @@
+# USB Screen Mirror Pro - Git Ignore
+*.exe
+*.dll
+*.pdb
+*.log
+*.tmp
+.vs/
+bin/
+obj/
