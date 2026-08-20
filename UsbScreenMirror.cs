@@ -1339,11 +1339,11 @@ namespace UsbScreenMirror
             string text = _txtSendText.Text;
             if (string.IsNullOrEmpty(text) || text == "Type text to inject to phone input...") return;
 
-            string escaped = text.Replace(" ", "%s").Replace("\"", "\\\"");
+            string escaped = text.Replace("'", "'\\''").Replace(" ", "%s");
 
             Task.Run(() =>
             {
-                RunCommand(_adbPath, string.Format("-s \"{0}\" shell input text \"{1}\"", device.Serial, escaped));
+                RunCommand(_adbPath, string.Format("-s \"{0}\" shell input text '{1}'", device.Serial, escaped));
                 Dispatcher.Invoke(() =>
                 {
                     Log("📤 Sent text to mobile input: " + text);
